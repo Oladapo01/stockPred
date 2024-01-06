@@ -16,8 +16,8 @@ def perform_clustering(preprocessed_data, num_clusters, ticker_names):
     # Create a DataFrame with Ticker and corresponding cluster labels
     tickers = ticker_names
 
-    print("Length of ticker_names:", len(ticker_names))
-    print("Length of cluster_labels:", len(cluster_labels))
+    # print("Length of ticker_names:", len(ticker_names))
+    # print("Length of cluster_labels:", len(cluster_labels))
 
     # Make sure the length of tickers matches the length of cluster_labels
     if len(ticker_names) != len(cluster_labels):

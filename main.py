@@ -6,6 +6,7 @@ from data_fetcher import fetch_data, save_to_json
 from data_visualizer import plot_stock_data
 from clustering_stock_selection import perform_clustering
 from data_processing import preprocess_data
+from eda import plot_temporal_structure, plot_distribution, plot_interval_change, plot_candlestick
 from stocks_corr import calculate_correlation_matrix, top_correlated_stocks
 
 
@@ -117,5 +118,22 @@ def main():
             st.write(f"Top positive correlation: {top_positive}")
             st.write(f"Top negative correlation: {top_negative}")
 
+    # EDA
+    # Perform EDA for each selected stocks
+    for stock in selected_stocks:
+        stock_data = fetch_data(stock, start_date, end_date)
+        st.write(f"EDA for {stock}:")
+        # Temporal structure
+        temporal = plot_temporal_structure(stock_data, stock)
+        st.plotly_chart(temporal)
+        # Distribution of observations
+        distribution = plot_distribution(stock_data, stock)
+        st.plotly_chart(distribution)
+        # Interval change
+        interval_change = plot_interval_change(stock_data, stock, interval='M')
+        st.plotly_chart(interval_change)
+        # Candlestick chart
+        candlestick_fig = plot_candlestick(stock_data, stock)
+        st.plotly_chart(candlestick_fig)
 if __name__ == "__main__":
     main()
