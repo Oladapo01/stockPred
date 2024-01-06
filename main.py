@@ -6,6 +6,8 @@ from data_fetcher import fetch_data, save_to_json
 from data_visualizer import plot_stock_data
 from clustering_stock_selection import perform_clustering
 from data_processing import preprocess_data
+from stocks_corr import calculate_correlation_matrix, top_correlated_stocks
+
 
 def main():
     # Load the NASDAQ-100 company data from the JSON file
@@ -57,8 +59,8 @@ def main():
         st.success("Data successfully fetched.")
         # Preprocess the data before clustering
         preprocessed_data, ticker_names = preprocess_data(all_data)
-        print(f"Preprocessed data shape: {preprocessed_data.shape}")
-        print(f"Number of tickers: {len(ticker_names)}")
+        # print(f"Preprocessed data shape: {preprocessed_data.shape}")
+        # print(f"Number of tickers: {len(ticker_names)}")
         # Perform clustering and get the result DataFrame
         clustering_result = perform_clustering(preprocessed_data, num_clusters, ticker_names)
 
@@ -69,11 +71,10 @@ def main():
             ticker_in_clustering = clustering_result[clustering_result['Cluster'] == cluster_num]['Ticker'].tolist()
             st.write(ticker_in_clustering)
 
-        # Perform clustering using the last 365 days of data
-        # clustering_result = perform_clustering(data, num_clusters, start_date, end_date)
-
-    # Select one stock from each cluster
+        # Select one stock from each cluster
         selected_stocks = []
+        # Fetch the data for the selected stock
+        selected_data = fetch_data(selected_ticker, start_date, end_date)
         for i in range(num_clusters):
             stocks_in_cluster = clustering_result[clustering_result['Cluster'] == i]['Ticker'].tolist()
             selected_stock = stocks_in_cluster[0]  # Select the first stock in each cluster
@@ -82,7 +83,7 @@ def main():
         # Display the data using the data_visualizer module
         if data is not None:
             st.write(f"Stock Data for {user_input} ({selected_ticker}):")
-            st.write(data.head())  # Display the first few rows of the data
+            st.write(selected_data.head())  # Display the first few rows of the data
             plot_stock_data(data, user_input)  # Plot the closing price
 
             # Perform clustering and stock selection
@@ -99,6 +100,22 @@ def main():
                 save_to_json(data, group)  # Removed the selected_ticker argument
         else:
             st.error(f"No data available for {user_input} ({selected_ticker}).")
+
+
+        selected_stocks = clustering_result.groupby('Cluster')['Ticker'].first().tolist()
+
+
+        # Calculate correlation matrix
+        corr_matrix = calculate_correlation_matrix(all_data)
+        correlated_stocks = top_correlated_stocks(corr_matrix, selected_stocks)
+        # Ensure selected_stocks are in the index of all_data before computing the correlation
+        assert all(stock in all_data.columns for stock in selected_stocks), "Selected stocks must be in all_data columns"
+
+        # Present the top-10 correlated stocks for each stock
+        for stock, (top_positive, top_negative) in correlated_stocks.items():
+            st.write(f"Stock: {stock}")
+            st.write(f"Top positive correlation: {top_positive}")
+            st.write(f"Top negative correlation: {top_negative}")
 
 if __name__ == "__main__":
     main()
