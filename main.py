@@ -1,21 +1,35 @@
+import numpy as np
 import streamlit as st
 import warnings
 import json
 import pandas as pd
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from data_fetcher import fetch_data, save_to_json
-from data_visualizer import plot_stock_data, plot_prophet_forecast_with_annotations
+from data_visualizer import plot_stock_data, plot_prophet_forecast_with_annotations, trading_signals_visualizer
 from clustering_stock_selection import perform_clustering
 from data_processing import preprocess_data, process_date_data
 from eda import plot_temporal_structure, plot_distribution, plot_interval_change, plot_candlestick
 from arima_model import train_arima_mys_tock_model
 from regressor_model import train_regressor_model,predict, evaluate
-from prophet_model import train_prophet_model, forecast_with_prophet, plot_prophet_forecast
+from prophet_model import train_prophet_model, forecast_with_prophet
+from sentiment_analysis import fetch_news, analyze_news_sentiment
+from rsi_calculator import calculate_rsi
+from trading_signals import generate_trading_signals
 from xgboost_model import train_xgboost_model
 from stocks_corr import calculate_correlation_matrix, top_correlated_stocks
 from lstm_model import train_lstm_stock_model, preprocess_lstm_data
 
+
+# Initialize session state variables
+if 'order_status' not in st.session_state:
+    st.session_state.order_status = ''
+
+# Define the callback functions for the buttons
+def place_buy_order():
+    st.session_state.order_status = 'buy'
+
+def place_sell_order():
+    st.session_state.order_status = 'sell'
 
 def main():
     # Load the NASDAQ-100 company data from the JSON file
@@ -316,6 +330,79 @@ def main():
         # Plot the actual and predicted prices
         combined_data = pd.concat([y_test.to_frame(name='Actual'), pd.Series(y_pred, index=y_test.index, name='Predicted')], axis=1)
         st.line_chart(combined_data)
+
+    # Sentiment analysis
+    # Fetch news data from Alpha Vantage
+    for stock in selected_stocks:
+        api_key = '90P4SKTLT5H2GUJ9'
+        # Ensuring 'Date' column exists and convert it to datetime format if necessary
+        if 'Date' not in stock_data.columns:
+            stock_data['Date'] = pd.to_datetime(stock_data.index)
+        # Print the columns to verify 'Close' is present
+        print(f"Columns before RSI calculation: {stock_data.columns}")
+        # Calculate RSI
+        rsi_values = calculate_rsi(stock_data)
+        stock_data['RSI'] = rsi_values
+        # Print the columns again to verify 'Close' is still present
+        print(f"Columns before generating signals: {stock_data.columns}")
+
+        news_data = fetch_news(api_key, stock)
+        # Analyze the sentiment of the news
+        sentiments = analyze_news_sentiment(news_data)
+        average_sentiment = np.mean(sentiments)
+        # Generate trading signals
+        # After generating trading signals
+        signals_data = generate_trading_signals(stock_data)
+        # Print the columns one more time to verify 'Close' is still present
+        print(f"Columns before plotting: {signals_data.columns}")
+        fig = trading_signals_visualizer(signals_data)
+
+        # Now display the plot with Streamlit
+        st.write(f"Trading signals for {stock}:")
+        st.plotly_chart(fig)
+        # Plot the sentiment of the news
+        st.write(f"Sentiment analysis for {stock}:")
+        st.line_chart(sentiments)
+
+
+        # Plot and display RSI and sentiment analysis results in Streamlit
+        st.write(f"Average sentiment for {selected_ticker}: {average_sentiment}")
+        st.line_chart(stock_data[['Close', 'RSI']])
+
+        # After selecting a stock, performing analysis, generating signals, etc.
+    for stock in selected_stocks:
+        # Assuming `signals_data` is a DataFrame with 'Signal' column
+        # representing the Buy/Sell/Hold signals
+        signals_data = generate_trading_signals(stock_data)
+
+        # Display the latest signal and advice
+        latest_signal = signals_data['Signal'].iloc[-1]
+        if latest_signal == 'Buy':
+            st.success(f"🟢 Buy Advice: Consider buying {stock}.")
+        elif latest_signal == 'Sell':
+            st.error(f"🔴 Sell Advice: Consider selling {stock}.")
+        else:
+            st.info(f"🔵 Hold Advice: Maintain your position in {stock}.")
+
+        # Display trading signals
+        st.write(f"Trading signals for {stock}:")
+        st.dataframe(signals_data[['Close', 'RSI', 'MA_Short', 'MA_Long', 'Signal']])
+
+        # Request user input for order quantity and place an order
+        order_qty = st.number_input(f"Enter quantity for {stock}:", min_value=0, value=0, step=1)
+
+        # Buttons for placing orders
+        st.button(f"Place Buy order for {stock}", on_click=place_buy_order)
+        st.button(f"Place Sell order for {stock}", on_click=place_sell_order)
+
+        if st.button(f"Place order for {stock}"):
+            # Order processing logic here
+            st.success(f"Order to {latest_signal} {order_qty} units of {stock} placed successfully.")
+            st.session_state.buy_order_placed = False
+        if st.button(f"Sell {stock}"):
+            # Order processing logic here
+            st.success(f"Order to {latest_signal} {order_qty} units of {stock} sold successfully.")
+            st.session_state.buy_order_placed = False
 
 if __name__ == "__main__":
     main()
