@@ -1,14 +1,17 @@
 import streamlit as st
+import warnings
 import json
 import pandas as pd
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from data_fetcher import fetch_data, save_to_json
-from data_visualizer import plot_stock_data
+from data_visualizer import plot_stock_data, plot_prophet_forecast_with_annotations
 from clustering_stock_selection import perform_clustering
 from data_processing import preprocess_data, process_date_data
 from eda import plot_temporal_structure, plot_distribution, plot_interval_change, plot_candlestick
 from arima_model import train_arima_mys_tock_model
 from regressor_model import train_regressor_model,predict, evaluate
+from prophet_model import train_prophet_model, forecast_with_prophet, plot_prophet_forecast
 from stocks_corr import calculate_correlation_matrix, top_correlated_stocks
 from lstm_model import train_lstm_stock_model, preprocess_lstm_data
 
@@ -17,6 +20,9 @@ def main():
     # Load the NASDAQ-100 company data from the JSON file
     with open('nasdaq100_companies.json', 'r') as json_file:
         nasdaq_100_data = json.load(json_file)
+    # Suppress specific FutureWarnings from Prophet and Plotly
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=FutureWarning)
 
     # Convert the dictionary keys (company names) into a list for the dropdown
     nasdaq_100_tickers = list(nasdaq_100_data.keys())
@@ -187,11 +193,7 @@ def main():
         # Plotting the combined data
         st.write(f"ARIMA model for {stock}:")
         st.line_chart(combined_data)
-        print("Forecast data:")
-        print(forecast)
 
-        print("Combined data:")
-        print(combined_data)
 
     # LSTM model
     # After selecting a stock, perform LSTM model
@@ -224,6 +226,7 @@ def main():
         # Combine and plot the actual and predicted data
         combined_data = pd.concat([actual, predicted], axis=1)
         st.write(f"LSTM model for {stocks}:")
+        # st.line_chart(combined_data)
         st.line_chart(combined_data)
 
 
@@ -263,7 +266,35 @@ def main():
         combined_data = pd.concat([y_test.to_frame(name='Actual'), pd.Series(y_pred, index=y_test.index, name='Predicted')], axis=1)
         st.line_chart(combined_data)
 
+    # Prophet model
+    # After selecting a stock, performing prophet model
+    for stock in selected_stocks:
+        stock_data = fetch_data(stock, start_date, end_date)
 
+        # Ensure 'Date' column exists and convert it to datetime format if necessary
+        if 'Date' not in stock_data.columns:
+            stock_data['Date'] = pd.to_datetime(stock_data.index)
+
+
+        # Train the model
+        prophet_model = train_prophet_model(stock_data)
+
+        # Preprocess the data
+        # stock_data = process_date_data(stock_data)
+
+        # Define the number of days to forecast
+        periods_to_forecast = 365
+        # Generate a forecast
+        forecast = forecast_with_prophet(prophet_model, periods=periods_to_forecast)
+
+        # Plot the forecast
+        # Plot the forecast with annotations
+        fig = plot_prophet_forecast_with_annotations(prophet_model, forecast, periods_to_forecast)
+
+        # Display the plots
+        st.write(f"Prophet model for {stock}:")
+
+        st.plotly_chart(fig)
 
 if __name__ == "__main__":
     main()
