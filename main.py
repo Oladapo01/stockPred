@@ -33,6 +33,7 @@ def place_sell_order():
     st.session_state.order_status = 'sell'
 
 def main():
+    st.title("Solent Financial Technology (SOLFINTECH)")
     # Load the NASDAQ-100 company data from the JSON file
     with open('nasdaq100_companies.json', 'r') as json_file:
         nasdaq_100_data = json.load(json_file)
