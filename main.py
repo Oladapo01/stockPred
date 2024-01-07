@@ -1,5 +1,6 @@
 import streamlit as st
 import json
+import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from data_fetcher import fetch_data, save_to_json
@@ -7,6 +8,7 @@ from data_visualizer import plot_stock_data
 from clustering_stock_selection import perform_clustering
 from data_processing import preprocess_data
 from eda import plot_temporal_structure, plot_distribution, plot_interval_change, plot_candlestick
+from arima_model import train_arima_mys_tock_model
 from stocks_corr import calculate_correlation_matrix, top_correlated_stocks
 
 
@@ -135,5 +137,60 @@ def main():
         # Candlestick chart
         candlestick_fig = plot_candlestick(stock_data, stock)
         st.plotly_chart(candlestick_fig)
+
+    # ARIMA model
+    # After selecting a stock, perform ARIMA model
+    for i, stock in enumerate(selected_stocks):
+        # Define the minimum and maximum dates for the forecast date input
+        min_date = datetime.today() - timedelta(days=365)  # 1 year ago from today
+        max_date = datetime.today() + timedelta(days=365)  # 1 year into the future
+
+
+        # Unique key for each date_input using the stocks' ticker symbol
+        forecast_date_key = f"Forecast_date_{stock}_{i}"
+        # Now you can use min_date and max_date in your date_input widget
+        forecast_date = st.date_input("Select date for forecast",
+                                      min_value=min_date,
+                                      max_value=max_date,
+                                      key=forecast_date_key)
+
+        stock_data = fetch_data(stock, start_date, end_date)
+        train, test, forecast = train_arima_mys_tock_model(stock_data, stock, forecast_date)
+        # Check if the first forecast date is right after the last date in 'test'
+        if forecast.index[0] != test.index[-1] + pd.Timedelta(days=1):
+            # If there's a gap, fill in the gap with NaNs before the forecast
+            gap_index = pd.date_range(start=test.index[-1] + pd.Timedelta(days=1),
+                                      end=forecast.index[0] - pd.Timedelta(days=1),
+                                      freq='D')
+            gap_series = pd.Series([None] * len(gap_index), index=gap_index)
+            forecast = pd.concat([gap_series, forecast])
+
+        # Combine the actual and forecast data into a single DataFrame
+        combined_data = pd.concat([test.to_frame(name='Actual'), forecast.to_frame(name='Forecast')], axis=1)
+
+
+        # Ensure the forecast starts the day after the last actual data point
+        if forecast.index[0] == test.index[-1]:
+            forecast = forecast[1:]
+
+        # Combine the actual and forecast data
+        combined_data = test.copy()  # make a copy of the actual data
+
+        # Add forecast data as a new column, this will create NaN for the 'test' period
+        combined_data = combined_data.to_frame(name='Actual')
+        forecast = forecast.to_frame(name='Forecast')
+
+        # Now combine using the date index; this will align the forecast data next to the actual data
+        combined_data = combined_data.join(forecast, how='outer')
+
+        # Plotting the combined data
+        st.write(f"ARIMA model for {stock}:")
+        st.line_chart(combined_data)
+        print("Forecast data:")
+        print(forecast)
+
+        print("Combined data:")
+        print(combined_data)
+
 if __name__ == "__main__":
     main()
