@@ -12,6 +12,7 @@ from eda import plot_temporal_structure, plot_distribution, plot_interval_change
 from arima_model import train_arima_mys_tock_model
 from regressor_model import train_regressor_model,predict, evaluate
 from prophet_model import train_prophet_model, forecast_with_prophet, plot_prophet_forecast
+from xgboost_model import train_xgboost_model
 from stocks_corr import calculate_correlation_matrix, top_correlated_stocks
 from lstm_model import train_lstm_stock_model, preprocess_lstm_data
 
@@ -295,6 +296,26 @@ def main():
         st.write(f"Prophet model for {stock}:")
 
         st.plotly_chart(fig)
+
+    # XGBoost model
+    # After selecting a stock, perform XGBoost model
+    for stock in selected_stocks:
+        # Fetch the data
+        stock_data = fetch_data(stock, start_date, end_date)
+
+        # Preprocess the data
+        stock_data = process_date_data(stock_data)
+
+        # Train the model
+        model, rmse, X_test, y_test, y_pred = train_xgboost_model(stock_data, 'Close')
+
+        # Evaluate the model
+        st.write(f"XGBoost model for {stock}:")
+        st.write(f"RMSE: {rmse}")
+
+        # Plot the actual and predicted prices
+        combined_data = pd.concat([y_test.to_frame(name='Actual'), pd.Series(y_pred, index=y_test.index, name='Predicted')], axis=1)
+        st.line_chart(combined_data)
 
 if __name__ == "__main__":
     main()
