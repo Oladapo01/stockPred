@@ -5,9 +5,10 @@ from datetime import datetime, timedelta
 from data_fetcher import fetch_data, save_to_json
 from data_visualizer import plot_stock_data
 from clustering_stock_selection import perform_clustering
-from data_processing import preprocess_data
+from data_processing import preprocess_data, process_date_data
 from eda import plot_temporal_structure, plot_distribution, plot_interval_change, plot_candlestick
 from arima_model import train_arima_mys_tock_model
+from regressor_model import train_regressor_model,predict, evaluate
 from stocks_corr import calculate_correlation_matrix, top_correlated_stocks
 from lstm_model import train_lstm_stock_model, preprocess_lstm_data
 
@@ -226,7 +227,41 @@ def main():
         st.line_chart(combined_data)
 
 
+    # Regressor model
+    # After selecting a stock, perform regressor model
+    for stock in selected_stocks:
+        # Define date range for the last year
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+        # Fetch the data
+        stock_data = fetch_data(stock, start_date, end_date)
 
+        # Preprocess the data
+        stock_data = process_date_data(stock_data)
+
+        # Split the data into train and test sets
+        # Assuming the 'preprocess_data' function sets the 'Date' column as the index
+        split_date = start_date + timedelta(days=int(len(stock_data) * 0.8))
+        train, test = stock_data[:split_date], stock_data[split_date:]
+
+        # Create the features and target DataFrames
+        X_train, y_train = train.drop(columns=['Close']), train['Close']
+        X_test, y_test = test.drop(columns=['Close']), test['Close']
+
+        # Train the model
+        model = train_regressor_model(X_train, y_train)
+
+        # Predict the prices
+        y_pred = predict(model, X_test)
+
+        # Evaluate the model
+        rmse = evaluate(y_test, y_pred)
+        st.write(f"Regressor model for {stock}:")
+        st.write(f"RMSE: {rmse}")
+
+        # Plot the actual and predicted prices
+        combined_data = pd.concat([y_test.to_frame(name='Actual'), pd.Series(y_pred, index=y_test.index, name='Predicted')], axis=1)
+        st.line_chart(combined_data)
 
 
 
