@@ -1,6 +1,5 @@
 import streamlit as st
 import json
-import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from data_fetcher import fetch_data, save_to_json
@@ -10,6 +9,7 @@ from data_processing import preprocess_data
 from eda import plot_temporal_structure, plot_distribution, plot_interval_change, plot_candlestick
 from arima_model import train_arima_mys_tock_model
 from stocks_corr import calculate_correlation_matrix, top_correlated_stocks
+from lstm_model import train_lstm_stock_model, preprocess_lstm_data
 
 
 def main():
@@ -191,6 +191,44 @@ def main():
 
         print("Combined data:")
         print(combined_data)
+
+    # LSTM model
+    # After selecting a stock, perform LSTM model
+    for stocks in selected_stocks:
+        n_steps = 10
+        # Fetching the data
+        stock_data = fetch_data(stocks, start_date, end_date)
+
+        # Training the LSTM model
+        model, scaler = train_lstm_stock_model(stock_data, n_steps=n_steps)
+
+        # Prepare the data for plotting
+        close_prices = stock_data['Close'].values
+        scaler_data = scaler.transform(close_prices.reshape(-1, 1))
+        X, _ = preprocess_lstm_data(scaler_data.ravel(), n_steps)
+
+        # Predicting with the LSTM model
+        predictions = model.predict(X)
+        # Inverse transform the predictions
+        predictions = scaler.inverse_transform(predictions)
+
+        # Prepare the actual and predicted for plotting
+        actual = pd.DataFrame(close_prices[n_steps:], columns=['Actual'])
+        predicted = pd.DataFrame(predictions.ravel(), columns=['Predictions'], index=actual.index)
+
+
+        # Align the index of predicted to match the actual data
+        # predicted = actual.index
+
+        # Combine and plot the actual and predicted data
+        combined_data = pd.concat([actual, predicted], axis=1)
+        st.write(f"LSTM model for {stocks}:")
+        st.line_chart(combined_data)
+
+
+
+
+
 
 if __name__ == "__main__":
     main()
