@@ -3,7 +3,6 @@ from rsi_calculator import calculate_rsi
 
 
 def generate_trading_signals(data, rsi_period=14, sentiment_threshold=0.1):
-    print(data.columns)
     # Calculate RSI
     data['RSI'] = calculate_rsi(data, periods=rsi_period)
 

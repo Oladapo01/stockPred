@@ -36,7 +36,6 @@ def train_arima_mys_tock_model(data, ticker, forecast_date):
 
     # Make predictions on the test set and also for future dates if needed
     forecast_values = model.predict(n_periods=forecast_period)
-    print("Forecast values:", forecast_values)
     forecast = pd.Series(forecast_values.values, index=forecast_index, name='Forecast')
 
     return train, test, forecast

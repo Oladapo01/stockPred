@@ -1,3 +1,5 @@
+import numpy as np
+import pandas as pd
 import xgboost as xgb
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
@@ -35,3 +37,31 @@ def predict_xgboost(model, data):
     y_pred = model.predict(data)
 
     return y_pred
+
+
+def forecast_future_months(model, last_known_data,  months):
+    future_predictions = []
+    current_features = last_known_data.copy()
+
+    for _ in range(months):
+        # Predict the next month
+        y_pred = model.predict(current_features)
+        future_predictions.append(y_pred[0])
+
+        # Create new features for the next prediction
+        next_features = generate_features_for_next_prediction(current_features.iloc[-1])
+
+        # Append the new features for the next prediction
+        # Ensuring that 'current_features' remains a DataFrame
+        current_features = pd.concat([current_features, pd.DataFrame([next_features])]).reset_index(drop=True)
+
+    return future_predictions
+
+
+def generate_features_for_next_prediction(last_row):
+    # Create a new row for prediction with the necessary feature transformation
+    new_row = last_row.copy()
+
+    return new_row
+
+

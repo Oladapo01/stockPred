@@ -16,7 +16,7 @@ from prophet_model import train_prophet_model, forecast_with_prophet
 from sentiment_analysis import fetch_news, analyze_news_sentiment
 from rsi_calculator import calculate_rsi
 from trading_signals import generate_trading_signals
-from xgboost_model import train_xgboost_model
+from xgboost_model import train_xgboost_model, forecast_future_months
 from stocks_corr import calculate_correlation_matrix, top_correlated_stocks
 from lstm_model import train_lstm_stock_model, preprocess_lstm_data
 
@@ -255,10 +255,9 @@ def main():
             actual = pd.DataFrame(close_prices[n_steps:], columns=['Actual'])
             predicted = pd.DataFrame(predictions.ravel(), columns=['Predictions'], index=actual.index)
 
-            # Combine and plot the actual and predicted data
+            # Combining and plot the actual and predicted data
             combined_data = pd.concat([actual, predicted], axis=1)
             st.write(f"LSTM model for {stocks}:")
-            # st.line_chart(combined_data)
             st.line_chart(combined_data)
 
 
@@ -310,11 +309,8 @@ def main():
             if 'Date' not in stock_data.columns:
                 stock_data['Date'] = pd.to_datetime(stock_data.index)
 
-
             # Train the model
             prophet_model = train_prophet_model(stock_data)
-
-
 
             # Define the number of days to forecast
             periods_to_forecast = 365
@@ -345,11 +341,47 @@ def main():
 
             # Evaluate the model
             st.write(f"XGBoost model for {stock}:")
-            st.write(f"RMSE: {rmse}")
 
+            # Get the most recent price from your data
             # Plot the actual and predicted prices
             combined_data = pd.concat([y_test.to_frame(name='Actual'), pd.Series(y_pred, index=y_test.index, name='Predicted')], axis=1)
-            st.line_chart(combined_data)
+
+            # Forecast future months
+            months = 1
+            last_known_data = X_test.tail(1)  # Get the last known data as a DataFrame
+
+            # Creating a new DataFrame for the forecast with the date as the index
+            next_day_date = pd.to_datetime('today').normalize() + pd.Timedelta(days=1)  # Normalize to remove the time component
+
+            # Forecast for the next day
+            next_day_forecast = forecast_future_months(model, X_test.tail(1), 1)  # Create a DataFrame for the forecast with the date as the index
+            forecast_df = pd.DataFrame({'Forecast': next_day_forecast}, index=[next_day_date])
+            # Appending the forecast to the combined_data DataFrame
+            # Make sure to only append it if it doesn't already exist
+            if next_day_date not in combined_data.index:
+                combined_data.loc[next_day_date, 'Forecast'] = next_day_forecast[0]
+
+            future_predictions = forecast_future_months(model, last_known_data, 1)
+
+            future_dates = pd.date_range(start=last_known_data.index[-1], periods=months, freq='D')
+            print(future_dates)
+            future_df = pd.DataFrame(future_predictions, index=future_dates, columns=['Forecast'])
+            print(future_df)
+
+            # Combine the historical and forecast data
+            # Concatenate the forecast DataFrame to the combined_data DataFrame
+            combined_data = pd.concat([combined_data, forecast_df])
+
+            # Sort the index after appending to avoid plotting issues
+            combined_data.sort_index(inplace=True)
+            # Display the forecast for the next day
+            st.markdown(f"Forecast for {next_day_date.strftime('%Y-%m-%d')}: ${next_day_forecast[0]:.2f}")
+            # Display current price in bold if available
+            current_price = stock_data['Close'].iloc[-1]
+            if pd.notna(current_price):
+                st.markdown(f"**Current Price: ${current_price:.2f}**")
+            # Plot the data
+            st.line_chart(combined_data[['Actual', 'Predicted', 'Forecast']])
 
     with tab10:
         # Sentiment analysis
@@ -374,20 +406,16 @@ def main():
             # Generate trading signals
             # After generating trading signals
             signals_data = generate_trading_signals(stock_data)
-            # Print the columns one more time to verify 'Close' is still present
-            print(f"Columns before plotting: {signals_data.columns}")
             fig = trading_signals_visualizer(signals_data)
 
-            # Now display the plot with Streamlit
+            # Displaying the plot with Streamlit
             st.write(f"Trading signals for {stock}:")
             st.plotly_chart(fig)
             # Plot the sentiment of the news
             st.write(f"Sentiment analysis for {stock}:")
-            st.line_chart(sentiments)
 
 
             # Plot and display RSI and sentiment analysis results in Streamlit
-            st.write(f"Average sentiment for {selected_ticker}: {average_sentiment}")
             st.line_chart(stock_data[['Close', 'RSI']])
 
             # After selecting a stock, performing analysis, generating signals, etc.
@@ -415,15 +443,6 @@ def main():
             # Buttons for placing orders
             st.button(f"Place Buy order for {stock}", on_click=place_buy_order)
             st.button(f"Place Sell order for {stock}", on_click=place_sell_order)
-
-            if st.button(f"Place order for {stock}"):
-                # Order processing logic here
-                st.success(f"Order to {latest_signal} {order_qty} units of {stock} placed successfully.")
-                st.session_state.buy_order_placed = False
-            if st.button(f"Sell {stock}"):
-                # Order processing logic here
-                st.success(f"Order to {latest_signal} {order_qty} units of {stock} sold successfully.")
-                st.session_state.buy_order_placed = False
 
 if __name__ == "__main__":
     main()

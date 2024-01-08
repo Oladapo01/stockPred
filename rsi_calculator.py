@@ -2,8 +2,6 @@ import numpy as np
 import pandas as pd
 
 def calculate_rsi(data, periods=14):
-    print("Type of data:", type(data))
-    print("Data 'Close' column:", data['Close'])
     # Ensure 'Close' is a Series and contains numeric values
     #if not isinstance(data, pd.DataFrame) or 'Close' not in data.columns:
     #    raise ValueError("'data' must be a DataFrame with a 'Close' column.")
