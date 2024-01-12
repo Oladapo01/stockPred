@@ -20,3 +20,18 @@ def analyze_news_sentiment(news_data):
         article['subjectivity'] = blob.sentiment.subjectivity
         sentiments.append(blob.sentiment.polarity)
     return sentiments
+
+def format_and_display_news(news_data):
+    formatted_news = []
+    # Format and display the news headline and sentiment polarity
+    for article in news_data:
+        formatted_article = {
+            "title": article.get("title", "No title"),
+            # "summary": article.get("summary", "No summary"),
+            "url": article.get("link", "#"),
+            "polarity": article.get("polarity", 0),
+            "subjectivity": article.get("subjectivity", 0),
+            "Date": article.get("publishedDate")
+        }
+        formatted_news.append(formatted_article)
+    return formatted_news

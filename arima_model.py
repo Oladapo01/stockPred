@@ -19,13 +19,15 @@ def train_arima_mys_tock_model(data, ticker, forecast_date):
     # Fit the ARIMA model
     model = auto_arima(train,
                        start_p=1, start_q=1,
-                       max_p=3, max_q=3, m=12,
+                       max_p=3, max_q=3, m=1,
                        start_P=0,
-                       d=None, D=1, trace=True,
                        seasonal=False,
+                       d=None, D=1, trace=True,
                        error_action='ignore',
-                       suppress_warnings=True
+                       suppress_warnings=True,
+                       stepwise=True
                        )
+    # Fit the model
     model.fit(train)
 
     # Calculate the forecast period

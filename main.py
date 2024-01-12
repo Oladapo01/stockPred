@@ -13,7 +13,7 @@ from eda import plot_temporal_structure, plot_distribution, plot_interval_change
 from arima_model import train_arima_mys_tock_model
 from regressor_model import train_regressor_model,predict, evaluate
 from prophet_model import train_prophet_model, forecast_with_prophet
-from sentiment_analysis import fetch_news, analyze_news_sentiment
+from sentiment_analysis import fetch_news, analyze_news_sentiment, format_and_display_news
 from rsi_calculator import calculate_rsi
 from trading_signals import generate_trading_signals
 from xgboost_model import train_xgboost_model, forecast_future_months
@@ -129,11 +129,13 @@ def main():
                     # Assuming you have a 'group' variable representing the group number (1 to 4)
                     group = 1  # Replace with the actual group number
                     save_to_json(data, group)  # Removed the selected_ticker argument
+                    
             else:
                 st.error(f"No data available for {user_input} ({selected_ticker}).")
-
-
             selected_stocks = clustering_result.groupby('Cluster')['Ticker'].first().tolist()
+
+
+
 
     with tab3:
         # Calculate correlation matrix
@@ -375,7 +377,7 @@ def main():
             # Sort the index after appending to avoid plotting issues
             combined_data.sort_index(inplace=True)
             # Display the forecast for the next day
-            st.markdown(f"Forecast for {next_day_date.strftime('%Y-%m-%d')}: ${next_day_forecast[0]:.2f}")
+            st.markdown(f"**Forecast for {next_day_date.strftime('%Y-%m-%d')}: ${next_day_forecast[0]:.2f}**")
             # Display current price in bold if available
             current_price = stock_data['Close'].iloc[-1]
             if pd.notna(current_price):
@@ -388,31 +390,89 @@ def main():
         # Fetch news data from Alpha Vantage
         for stock in selected_stocks:
             api_key = '90P4SKTLT5H2GUJ9'
-            # Ensuring 'Date' column exists and convert it to datetime format if necessary
-            if 'Date' not in stock_data.columns:
-                stock_data['Date'] = pd.to_datetime(stock_data.index)
-            # Print the columns to verify 'Close' is present
-            print(f"Columns before RSI calculation: {stock_data.columns}")
-            # Calculate RSI
+
+            # Reset index before merging if 'Date' is the index
+            stock_data = fetch_data(stock, start_date, end_date)
             rsi_values = calculate_rsi(stock_data)
             stock_data['RSI'] = rsi_values
-            # Print the columns again to verify 'Close' is still present
-            print(f"Columns before generating signals: {stock_data.columns}")
-
+            # Generate trading signals
+            signals_data = generate_trading_signals(stock_data)
+            # Fetch and process news data
             news_data = fetch_news(api_key, stock)
             # Analyze the sentiment of the news
             sentiments = analyze_news_sentiment(news_data)
-            average_sentiment = np.mean(sentiments)
+            formatted_news = format_and_display_news(news_data)
+            sentiment_df = pd.DataFrame(formatted_news)
+            if 'Date' not in sentiment_df.columns:
+                # Handle error, perhaps Date is supposed to be fetched from news_data
+                raise ValueError("Date column missing from sentiment data")
+
+            # If 'Date' is in the index of signals_data, reset it
+            if 'Date' in signals_data.index.names:
+                signals_data.reset_index(inplace=True)
+                print(sentiment_df.dtypes)
+                print(signals_data.dtypes)
+
+                sentiment_df['Date'] = pd.to_datetime(sentiment_df['Date'])
+                signals_data['Date'] = pd.to_datetime(signals_data['Date'])
+            combined_data = pd.merge(sentiment_df, signals_data[['Date', 'Signal']], on='Date', how='left')
+
+            # Print the columns to verify 'Close' is present
+            print(f"Columns before RSI calculation: {stock_data.columns}")
+            # Calculate RSI
+
+            # Print the columns again to verify 'Close' is still present
+            print(f"Columns before generating signals: {stock_data.columns}")
+
+
+
+            #
+            # Merge with signals data
+            # combined_data = pd.merge(sentiment_df, signals_data[['Date', 'Signal']], on='Date', how='left')
+            #average_sentiment = np.mean(sentiments)
+            # Convert sentiment data to a DataFrame
             # Generate trading signals
             # After generating trading signals
-            signals_data = generate_trading_signals(stock_data)
+
             fig = trading_signals_visualizer(signals_data)
 
-            # Displaying the plot with Streamlit
-            st.write(f"Trading signals for {stock}:")
-            st.plotly_chart(fig)
-            # Plot the sentiment of the news
-            st.write(f"Sentiment analysis for {stock}:")
+
+            # Debug: Print formatted_news to verify 'Date' is present
+            print("Formatted News Sample:", formatted_news[:3])
+
+            sentiment_df = pd.DataFrame(formatted_news)
+
+            # Debug: Print sentiment_df columns to verify 'Date' column exists
+            print("Sentiment DataFrame columns:", sentiment_df.columns)
+
+
+            # Ensure that 'Date' column is available in sentiment_df
+            # If 'Date' is in the index, rename the 'Date' column
+            if 'Date' in sentiment_df.columns and 'Date' in sentiment_df.index.names:
+                sentiment_df = sentiment_df.reset_index(drop=True)
+                sentiment_df.rename(columns={'Date': 'NewsDate'}, inplace=True)
+
+
+
+
+
+            col1, col2 = st.columns(2)
+            with col2:
+                # Display news analyze news
+                for _, row in combined_data.iterrows():
+                    signal_text = row['Signal'] if pd.notna(row['Signal']) else ""
+                    st.subheader(row['title'])
+                    st.markdown(f"[Read More]({row['url']})")
+                    # Include the signal in the display
+                    st.text(
+                        f"Sentiment Polarity: {row['polarity']:.2f}, Subjectivity: {row['subjectivity']:.2f}, Signal: {signal_text}")
+            with col1:
+                # Displaying the plot with Streamlit
+                st.write(f"Trading signals for {stock}:")
+                st.plotly_chart(fig, use_container_width=True)
+                # Plot the sentiment of the news
+                st.write(f"Sentiment analysis for {stock}:")
+
 
 
             # Plot and display RSI and sentiment analysis results in Streamlit
